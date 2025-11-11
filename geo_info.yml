@@ -1,0 +1,7 @@
+locations: 
+  fenswood: 
+    latitude: 51.4235413
+    longitude: -2.6708488
+    altitude: 50
+    heading: 250
+    description: "Main Bristol Flight Lab outdoor testing site."
