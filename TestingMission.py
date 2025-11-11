@@ -1,19 +1,17 @@
 
 import MissionUtils as utils
-import MisisonPlanning as Plan
+
+from MisisonPlanning import MissionPlanner
 
 
 def build_circular_testing_mission(home_loc: str = 'fenswood', radius_m = 50, altitude: int = 30, num_circ_points: int = 4):
 
-    mission = []
+    planner = MissionPlanner(home_key='fenswood')
 
+    planner.create_takeoff_event(target_alt=30)
+    planner.create_loop_waypoints(radius_m=50, num_points=6, altitude=30)
+    planner.create_return_event(target_alt=30)
+    planner.create_land_event()
 
-    mission.append(Plan.create_takeoff_event(location_key=home_loc))
-
-    mission.append(Plan.create_loop_waypoints(seq = len(mission), location_key=home_loc, radius_m=radius_m, num_points=num_circ_points))
-
-    mission.append(Plan.create_return_event(seq=len(mission), location_key=home_loc))
-
-    mission.append(Plan.creat_land_event(seq=len(mission), location_key=home_loc))
-
+    return planner.get_mission()
     
