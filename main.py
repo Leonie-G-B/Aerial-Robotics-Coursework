@@ -7,6 +7,7 @@ import TestingMission as Test
 
 def main():
     
+    mission = Test.build_circular_testing_mission()
 
     pass
 

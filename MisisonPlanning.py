@@ -5,6 +5,8 @@ import yaml
 import math
 from pymavlink import mavutil
 
+import MissionUtils as utils
+
 
 #################################################################################
 import logging                                                                  #       
@@ -18,6 +20,7 @@ class MissionPlanner:
         self.home_key = home_key
         self.geo_filename = 'geo_info'
         self.home = self._load_home(location_key=home_key)
+        self.connection = utils.connect()
         self.mission = []
         self.seq = 0
 
@@ -33,12 +36,12 @@ class MissionPlanner:
             data = yaml.safe_load(file)
         
         for variable in path: 
-            info = data[variable]
+            data = data[variable]
 
-        if info is None: 
+        if data is None: 
             logging.warning(f"Yamml file search did not return any information. File: {filename}. Path details: {path}")
 
-        return info
+        return data
 
     def _load_home(self,location_key: str):
         info = self._read_yaml(self.geo_filename, ['locations', location_key])
@@ -74,7 +77,7 @@ class MissionPlanner:
 
         loc = self.home
         lat_offset_deg = radius_m / 111_320
-        lon_offset_deg = radius_m / (111_320 * math.cos(math.radians(lat)))
+        lon_offset_deg = radius_m / (111_320 * math.cos(math.radians(loc['latitude'])))
 
         for i in range(num_points):
             angle_rad = (2 * math.pi / num_points) * i
@@ -113,7 +116,7 @@ class MissionPlanner:
         return event
 
 
-    def creat_land_event(self):
+    def create_land_event(self):
 
         loc = self.home
 
@@ -138,3 +141,7 @@ class MissionPlanner:
     def _append_event(self, event: dict):
         self.mission.append(event)
         self.seq += 1
+
+
+    def get_mission(self) -> list:
+        return self.mission
