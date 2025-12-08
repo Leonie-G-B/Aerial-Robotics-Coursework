@@ -1,10 +1,12 @@
 
 
 import folium
-import srtm
+# import srtm
+from srtm.data import SrtmElevationData 
 import math
 import yaml
 from os import path
+import matplotlib as plt
 
 
 #################################################################################
@@ -157,9 +159,45 @@ class PathPlannner:
         print(f"Saved map as {filename}.html")
 
     def get_elevation_data(self):
+        """
+        Samples elevation at each waypoint currently stored in self.waypoints.
+        Populates:
+            self.elevations -> list of elevation values (meters)
+            self.distances  -> cumulative distance array (meters)
+        """
+        if not self.waypoints:
+            raise ValueError("Call create_wp_set() first, no waypoints defined.")
 
-        
-        pass
+        #strm elevation dataset
+        elevation_source = SrtmElevationData()
+        self.elevations = []
+        self.distances = [0.0]
+
+        for i, (lat, lon) in enumerate(self.waypoints):
+            h = elevation_source.get_elevation(lat, lon, approximate=True)
+            self.elevations.append(h)
+
+            if i > 0:
+                prev_lat, prev_lon = self.waypoints[i - 1]
+                d = self._haversine(prev_lat, prev_lon, lat, lon)
+                self.distances.append(self.distances[-1] + d)
+
+        return self.elevations, self.distances
 
     def plot_elevation_profile(self):
-        pass
+        """
+        Plots elevation vs distance using the data stored in the class.
+        """
+        if not self.elevations or not self.distances:
+            raise ValueError("Call get_elevation_data() before plotting.")
+
+        plt.figure(figsize=(10, 4))
+        plt.plot(self.distances, self.elevations, marker="o", linewidth=2)
+
+        plt.xlabel("Distance along route (m)")
+        plt.ylabel("Elevation (m)")
+        plt.title("Elevation Profile Along UAV Route")
+        plt.grid(True)
+
+        plt.tight_layout()
+        plt.show()  
