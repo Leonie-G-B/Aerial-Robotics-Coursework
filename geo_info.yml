@@ -17,3 +17,26 @@ locations:
     altitude: 860
     heading: 320
     description: "Rough location of Soufriere Hills Summit."
+
+
+montserrat_houses:
+  1:
+    lat: 16.747896
+    long: -62.214578
+    elev: 198
+  2: 
+    lat: 16.747167
+    long: -62.214332
+    elev: 193
+  3: 
+    lat: 16.745637
+    long: -62.213216
+    elev: 178
+  4:
+    lat: 16.743910
+    long: -62.213473
+    elev: 139
+  5: 
+    lat: 16.739553
+    long: -62.210909
+    elev: 159

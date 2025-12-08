@@ -11,7 +11,8 @@ def main():
         start= "mvo_helipad",
         destination= "soufriere_hills_summit"
     )
-
+    
+    Path.create_house_polygons()
     Path.create_wp_set()
     Path.plot_route_on_map(
         root_folder = "C:\\Users\\admin01\\OneDrive\\Documents\\UNI\\UNI\\Fork\\Path-Planning-Helper\\Maps",

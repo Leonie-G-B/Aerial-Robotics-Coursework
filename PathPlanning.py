@@ -21,6 +21,7 @@ class PathPlannner:
         self.start_wp_info = self._load_wp_info(start)
         self.end_wp_info = self._load_wp_info(destination)
 
+        self.avoid_polys = []
         self.intermediate_wps = []
         self.waypoints = []
         self.elevation_data = None
@@ -49,6 +50,10 @@ class PathPlannner:
     def _load_wp_info(self,location_key: str):
         info = self._read_yaml(self.geo_filename, ['locations', location_key])
         return info.copy()
+
+    def _load_houses_info(self):
+        info = self._read_yaml(self.geo_filename, ['montserrat_houses'])
+        return info.copy()
     
     def _haversine(self, lat1, lon1, lat2, lon2):
         R = 6371000  # earth
@@ -60,9 +65,46 @@ class PathPlannner:
              math.cos(p1) * math.cos(p2) * math.sin(dlon/2)**2)
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return R * c
+
+    def circle_to_polygon(self, lat, lon, radius_m, num_points=60):
+        """
+        Convert a circular zone into a polygon (list of [lat, lon] points). Compatible with folium .
+
+        :param lat: center latitude
+        :param lon: center longitude
+        :param radius_m: circle radius in meters
+        :param num_points: resolution of polygon
+        :return: list of [lat, lon]
+        """
+        R = 6371000#radius of earth
+        poly = []
+
+        for i in range(num_points):
+            angle = math.radians(float(i) / num_points * 360.0)
+            
+            # Offset in meters → degrees
+            dlat = (radius_m * math.sin(angle)) / R
+            dlon = (radius_m * math.cos(angle)) / (R * math.cos(math.radians(lat)))
+
+            new_lat = lat + math.degrees(dlat)
+            new_lon = lon + math.degrees(dlon)
+            
+            poly.append([new_lat, new_lon])
+
+        return poly
     
 
     ###### MAIN FUNCS ######
+
+    def create_house_polygons(self): 
+
+        house_info = self._load_houses_info()
+
+        for house_num in house_info:
+            house = house_info[house_num]
+            self.avoid_polys.append(self.circle_to_polygon(lat= house['lat'], lon= house['long'], radius_m=50))
+
+        return
 
     
     def create_wp_set(self):
@@ -94,6 +136,16 @@ class PathPlannner:
 
         m = folium.Map(location=self.waypoints[0], zoom_start=13)
 
+        # block out polygons
+        for poly in self.avoid_polys:
+            folium.Polygon(
+                locations=poly,
+                color = "red",
+                fill=True,
+                fill_opacity=0.3,
+                popup="50m Radius around house."
+            ).add_to(m)
+
         # Draw polyline route
         folium.PolyLine(self.waypoints, color="red", weight=4).add_to(m)
 
@@ -105,6 +157,8 @@ class PathPlannner:
         print(f"Saved map as {filename}.html")
 
     def get_elevation_data(self):
+
+        
         pass
 
     def plot_elevation_profile(self):
