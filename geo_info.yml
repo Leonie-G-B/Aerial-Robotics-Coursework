@@ -5,3 +5,15 @@ locations:
     altitude: 50
     heading: 250
     description: "Main Bristol Flight Lab outdoor testing site."
+  mvo_helipad:
+    latitude: 16.748513
+    longitude: -62.212618
+    altitude: 233
+    heading: 140
+    description: "MVO Helipad, Montserrat."
+  soufriere_hills_summit:
+    latitude: 16.709383
+    longitude: -62.177714
+    altitude: 860
+    heading: 320
+    description: "Rough location of Soufriere Hills Summit."
