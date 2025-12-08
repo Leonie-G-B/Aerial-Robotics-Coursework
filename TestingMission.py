@@ -4,10 +4,15 @@ import MissionUtils as utils
 from MisisonPlanning import MissionPlanner
 
 
-def build_circular_testing_mission(home_loc: str = 'fenswood', radius_m = 50, altitude: int = 30, num_circ_points: int = 4):
+# for typehint
+from pymavlink.mavutil import mavlink_connection
 
-    planner = MissionPlanner(home_key='fenswood')
 
+def build_circular_testing_mission(home_loc: str = 'fenswood', radius_m = 50, altitude: int = 30, num_circ_points: int = 4) -> tuple[list[dict], mavlink_connection] :
+
+    planner = MissionPlanner(home_key=home_loc)
+
+    planner.create_home_waypoint()
     planner.create_takeoff_event(target_alt=30)
     planner.create_loop_waypoints(radius_m=50, num_points=6, altitude=30)
     planner.create_return_event(target_alt=30)

@@ -49,6 +49,27 @@ class MissionPlanner:
 
     #### Mission event funcs #####
 
+    def create_home_waypoint(self):
+        loc = self.home.copy()
+
+        event = {
+            'seq': self.seq,
+            'frame': mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+            'command': mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,  # <--- FIX
+            'current': 0,
+            'autocontinue': 1,
+            'param1': 0,
+            'param2': 0,
+            'param3': 0,
+            'param4': 0,
+            'x': int(loc['latitude'] * 1e7),
+            'y': int(loc['longitude'] * 1e7),
+            'z': 0
+        }
+        self._append_event(event)
+        return event
+
+
     def create_takeoff_event(self, target_alt: int = 0, overrides: dict = None):
         """Create MAVLink Mission Planner compatible takeoff event from specified location."""
 
@@ -63,8 +84,8 @@ class MissionPlanner:
             'current': 0,
             'autocontinue': 1, 
             'param1' : 0, 'param2' : 0, 'param3' : 0, 'param4' : 0, #minimum pitch, empty, empty, yaw angles (deg) 
-            'x': loc['latitude'],
-            'y': loc['longitude'],
+            'x': int(loc['latitude'] * 1e7),
+            'y': int(loc['longitude'] * 1e7),
             'z': target_alt
         }
         self._append_event(event)
@@ -91,7 +112,9 @@ class MissionPlanner:
                 'current': 0,
                 'autocontinue': 1,
                 'param1': 0, 'param2': 0, 'param3': 0, 'param4': 0,
-                'x': lat, 'y': lon, 'z': 30
+                'x': int(lat * 1e7), 
+                'y': int(lon * 1e7),
+                'z': 30
             }
             self._append_event(wp)
 
@@ -108,8 +131,8 @@ class MissionPlanner:
         'current': 0,
         'autocontinue': 1,
         'param1': 0, 'param2': 0, 'param3': 0, 'param4': 0,
-        'x': loc['latitude'],
-        'y': loc['longitude'],
+        'x': int(loc['latitude'] * 1e7),
+        'y': int(loc['longitude'] * 1e7),
         'z': target_alt
         }
         self._append_event(event)
@@ -127,8 +150,8 @@ class MissionPlanner:
             'current': 0,
             'autocontinue': 1,
             'param1': 0, 'param2': 0, 'param3': 0, 'param4': 0,
-            'x': loc['latitude'], 
-            'y': loc['longitude'], 
+            'x': int(loc['latitude'] * 1e7),
+            'y': int(loc['longitude'] * 1e7),
             'z': 0
         }
         self._append_event(event)
@@ -143,5 +166,5 @@ class MissionPlanner:
         self.seq += 1
 
 
-    def get_mission(self) -> list:
-        return self.mission
+    def get_mission(self) -> tuple[list[dict], mavutil.mavlink_connection]:
+        return self.mission, self.connection
