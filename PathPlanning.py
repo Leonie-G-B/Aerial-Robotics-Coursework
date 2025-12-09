@@ -602,7 +602,8 @@ class PathPlannerv2:
             self, 
             state_space_width_m = 1000.0,
             n_climb_dir = 400, #resolution in climb direction (S)
-            n_perp_climb = 200 #resolution perpendicular to climb (R)
+            n_perp_climb = 200, #resolution perpendicular to climb (R)
+            extra_buffer_at_end = 250 #go an extra N metres behind the end point just to make the plots look a bit better.
         ):
         """
         Docstring for build_slice_state_space
@@ -676,7 +677,8 @@ class PathPlannerv2:
 
         #create statespace grids
 
-        s_vals = np.linspace( 0, L_m, n_climb_dir) #array along climb
+        extended_L = L_m + extra_buffer_at_end
+        s_vals = np.linspace(0, extended_L, n_climb_dir) #array along climb
         r_vals = np.linspace( -state_space_width_m, state_space_width_m, n_perp_climb) #array perpendicular to climb
 
         terrain = np.full((n_climb_dir, n_perp_climb), np.nan) #elevation height
@@ -687,10 +689,14 @@ class PathPlannerv2:
         #POPULATE THE GRIDS
 
         for i, s in enumerate(s_vals):
-            Hp = plane_height(s) #plane height at this position
+            Hp = plane_height(min(s, L_m))  #plane height at this position (horizontal after end where plot buffer is)
             for j, r in enumerate(r_vals):
-                along_pix = s / self.cellsize #m conversion
-                side_pix  = r / self.cellsize
+                along_pix = (
+                    s / self.cellsize if s <= L_m
+                    else L_m / self.cellsize + (s - L_m) / self.cellsize # covvnert to m and 
+                )
+                side_pix = r / self.cellsize
+
                 xy = start_climb + axis_unit * along_pix + side_unit * side_pix
                 x_pix, y_pix = xy[0], xy[1]
 
@@ -714,6 +720,8 @@ class PathPlannerv2:
             "obstacle_mask": obst,
             "axis_unit": axis_unit,
             "side_unit": side_unit,
+            "extended_L": extended_L,
+            "extra_forward_m": extra_buffer_at_end,
             "start_climb_xy": start_climb,
             "L_m": L_m,
             "H_start": initial_alt,
