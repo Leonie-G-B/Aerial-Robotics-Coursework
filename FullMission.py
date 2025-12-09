@@ -7,22 +7,25 @@ import PathPlanning
 
 def main():
     
-    Path = PathPlanning.PathPlannner(
-        start= "mvo_helipad",
-        destination= "soufriere_hills_summit"
-    )
+    # Path = PathPlanning.PathPlannner(
+    #     start= "mvo_helipad",
+    #     destination= "soufriere_hills_summit"
+    # )
     
-    Path.create_house_polygons()
-    Path.create_wp_set()
+    # Path.create_house_polygons()
+    # Path.create_wp_set()
 
 
-    Path.get_elevation_data()
-    Path.plot_elevation_profile()
+    # Path.get_elevation_data()
+    # Path.plot_elevation_profile()
 
-    Path.plot_route_on_map(
-        root_folder = "C:\\Users\\admin01\\OneDrive\\Documents\\UNI\\UNI\\Fork\\Path-Planning-Helper\\Maps",
-        filename= "Test_Map_1"
-    )
+    # Path.plot_route_on_map(
+    #     root_folder = "C:\\Users\\admin01\\OneDrive\\Documents\\UNI\\UNI\\Fork\\Path-Planning-Helper\\Maps",
+    #     filename= "Test_Map_1"
+    # )
+
+    Planner = PathPlanning.PathPlannerv2()
+    Planner.plot_elevation_profile()
 
 
 if __name__ == "__main__":
