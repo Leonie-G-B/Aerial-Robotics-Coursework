@@ -43,7 +43,13 @@ def main():
 
     Planner.dilate_obstacles(dilation_m = 50)
 
-    Planner.plot_slice_state_space(plot_dilated_flags=True)
+    # Planner.plot_slice_state_space(plot_dilated_flags=True)
+
+    Planner.extract_obstacle_polygons()
+    Planner.build_visibility_graph()
+
+    Planner.plot_slice_state_space(title = "Visibility graph in Climb plane state-space",
+        plot_dilated_flags=True, plot_visibility_graph=True)
 
 
 if __name__ == "__main__":

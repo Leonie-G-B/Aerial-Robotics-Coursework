@@ -17,7 +17,10 @@ from pyproj import Transformer
 import pyproj
 import pyvista as pv
 import numpy as np 
-from scipy.ndimage import binary_dilation
+from scipy.ndimage import binary_dilation, label
+import shapely
+from shapely.geometry import Polygon, Point, LineString, MultiPoint
+
 
 
 #################################################################################
@@ -733,7 +736,10 @@ class PathPlannerv2:
         return self.slice_state_space
     
 
-    def plot_slice_state_space(self, plot_dilated_flags: bool = False):
+    def plot_slice_state_space(self, 
+                               title: str = "Obstacle Mask in Climb Direction State Space",
+                               plot_dilated_flags: bool = False,
+                               plot_visibility_graph: bool = False):
         
         if self.slice_state_space is None:
             logging.error("Call build_slice_state_space() first.")
@@ -766,20 +772,13 @@ class PathPlannerv2:
                 ax.imshow(
                     dilated.T,
                     origin='lower',
+                    label = 'Dilated clearance obstacles',
                     extent=[s_vals[0], s_vals[-1], r_vals[0], r_vals[-1]],
-                    cmap='Oranges',
+                    cmap='Greys',
                     alpha=0.35,
                     aspect='auto'
                 )
 
-                ax.text(
-                    0.01, 0.95,
-                    f"Dilated obstacles (+{ss.get('dilation_m', '?')} m)",
-                    transform=ax.transAxes,
-                    fontsize=10,
-                    color="darkorange",
-                    ha="left"
-                )
             else:
                 ax.text(
                     0.01, 0.95,
@@ -790,9 +789,47 @@ class PathPlannerv2:
                     ha="left"
                 )
 
+        if plot_visibility_graph:
+            if ("visibility_graph" not in ss) or ("obstacle_polygons" not in ss):
+                logging.error("Visibility graph not calculated or found.")
+                return
+            else:
+                G = ss["visibility_graph"]
+                polys = ss["obstacle_polygons"]
 
-        ax.scatter(0, 0, c='red', s=60, label="Start of Climb (s=0, r=0)")
-        ax.scatter(L_m, 0, c='blue', s=60, label="End of Climb (Summit)")
+                for poly in polys:
+                    xs, ys = poly.exterior.xy
+                    ax.plot(xs, ys, color="pink", linewidth=2)
+                    ax.fill(xs, ys, color="pink", alpha=0.2)
+
+                node_positions = {}
+
+                for name in G:
+                    if name == "start":
+                        pos = (0.0, 0.0)
+                    elif name == "goal":
+                        pos = (L_m, 0.0)
+                    else:
+                        poly_id = int(name.split("_")[0][4:])
+                        v_id    = int(name.split("_")[1][1:])
+                        pos     = polys[poly_id].exterior.coords[v_id]
+
+                    node_positions[name] = pos
+
+                    if name not in ("start" or "goal"):
+                        ax.scatter(pos[0], pos[1], c="cyan", s=30)
+
+                for a in G:
+                    for b in G[a]:
+                        pa = node_positions[a]
+                        pb = node_positions[b]
+                        ax.plot([pa[0], pb[0]], [pa[1], pb[1]],
+                                color="orchid", alpha=0.4, linewidth=1, linestyle = "--")
+
+        
+        ax.scatter(0, 0, c='red', s=80, label="Start of Climb (s=0, r=0)")
+        ax.scatter(L_m, 0, c='blue', s=80, label="End of Climb (Summit)")
+
 
         # axis_unit is a direction in DEM pixels (dx, dy).
         # DEM Y increases downward, so north is -y direction
@@ -810,22 +847,28 @@ class PathPlannerv2:
         anchor_s = 0.9 * s_vals[-1]
         anchor_r = 0.8 * r_vals[-1]
 
-        # Draw arrow
-        ax.arrow(anchor_s, anchor_r,
-                north_s * scale,
-                north_r * scale,
-                head_width=0.05 * scale,
-                head_length=0.08 * scale,
-                fc='blue', ec='blue', linewidth=2)
-
-        ax.text(anchor_s + north_s * scale * 1.1,
-                anchor_r + north_r * scale * 1.1,
-                "N", color="blue", fontsize=14, ha="center")
-
+        # # Draw arrow
+        # ax.arrow(anchor_s, anchor_r,
+        #         north_s * scale,
+        #         north_r * scale,
+        #         head_width=0.05 * scale,
+        #         head_length=0.08 * scale,
+        #         fc='blue', ec='blue', linewidth=2)
+        
+        # label_offset = 0.05 * scale
+        # ax.text(
+        #     anchor_s - north_s * label_offset,
+        #     anchor_r - north_r * label_offset,
+        #     "N",
+        #     color="blue",
+        #     fontsize=14,
+        #     ha="center",
+        #     va="center"
+        #     )
 
         ax.set_xlabel("Distance Along Climb (m)")
         ax.set_ylabel("Perpendicular Distance (m)")
-        ax.set_title("Obstacle Mask in Climb Direction State Space")
+        ax.set_title(title)
         ax.legend(loc='upper left')
 
         fig.tight_layout()
@@ -854,7 +897,99 @@ class PathPlannerv2:
         self.slice_state_space["dilation_pixels"] = dilation_pixels
 
         logging.info(
-            f"Dilated obstacle mask created: {dilation_m} m → {dilation_pixels} pixels"
+            f"Dilated obstacle mask created: {dilation_m} m -> {dilation_pixels} pixels"
         )
 
         return dilated
+
+
+    def extract_obstacle_polygons(self, min_area: int = 50):
+        "still in s,r state space"
+
+        if self.slice_state_space is None: 
+            logging.info("Need to build the state space first")
+            return None
+        
+        ss = self.slice_state_space
+
+        if "obstacle_mask_dilated" not in ss:
+            logging.error("Call dilate_obstacles() first.")
+            return None
+
+        mask = ss["obstacle_mask_dilated"]
+        s_vals = ss["s_vals"]
+        r_vals = ss["r_vals"]
+
+        # Connected-component labeling
+        labeled_mask, num_objs = label(mask)
+        logging.info(f"Found {num_objs} obstacle objects before hull reduction.")
+
+        polygons = []
+
+        for obj_id in range(1, num_objs + 1):
+            ys, xs = np.where(labeled_mask == obj_id)
+            if len(xs) < 3:
+                continue
+
+            s_coords = s_vals[ys]
+            r_coords = r_vals[xs]
+
+            pts = np.column_stack([s_coords, r_coords])
+            hull = MultiPoint(pts).convex_hull
+
+            if hull.area < min_area:
+                continue  # remove tiny artifacts
+
+            polygons.append(hull)
+
+        self.slice_state_space["obstacle_polygons"] = polygons
+        logging.info(f"{len(polygons)} convex obstacle polygons extracted.")
+
+        return polygons
+        
+
+    def build_visibility_graph(self):
+
+        if "obstacle_polygons" not in self.slice_state_space:
+            logging.error("Run extract_obstacle_polygons() first.")
+            return None
+        
+        ss = self.slice_state_space
+        L_m = ss["L_m"]
+        polygons = ss["obstacle_polygons"]
+
+        nodes = []
+
+        start = Point(0.0, 0.0)
+        goal = Point(L_m, 0.0)
+
+        nodes.append(("start", start))
+        nodes.append(("goal", goal))
+
+        for idx, poly in enumerate(polygons):
+            coords = list(poly.exterior.coords)
+            for v_i, (s, r) in enumerate(coords):
+                nodes.append((f"poly{idx}_v{v_i}", Point(s, r)))
+
+        G = {name: {} for name, _ in nodes} #adjacency graph
+
+        def is_visible(p1, p2):
+            seg = LineString([p1, p2])
+            for poly in polygons:
+                if seg.crosses(poly) or seg.within(poly):
+                    return False
+            return True
+
+        for i, (name_i, p_i) in enumerate(nodes):
+            for j in range(i + 1, len(nodes)):
+                name_j, p_j = nodes[j]
+
+                if is_visible(p_i, p_j):
+                    dist = p_i.distance(p_j)
+                    G[name_i][name_j] = dist
+                    G[name_j][name_i] = dist
+
+        self.slice_state_space["visibility_graph"] = G
+        logging.info(f"Visibility graph found with {len(G)} nodes")
+
+        return G
