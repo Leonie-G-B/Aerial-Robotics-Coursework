@@ -33,13 +33,17 @@ def main():
         terrain_clearance = 130
     )
     # Planner.plot_elevation_profile()
-    Planner.plot_2d_slice_profile()
+    # Planner.plot_2d_slice_profile()
 
     Planner.build_slice_state_space()
 
-    Planner.plot_slice_state_space()
+    # Planner.plot_slice_state_space()
 
     Planner.plot_2d_slice_profile(title= "2D Elevation Slice with horizontal cruise and climb.")
+
+    Planner.dilate_obstacles(dilation_m = 50)
+
+    Planner.plot_slice_state_space(plot_dilated_flags=True)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ from pyproj import Transformer
 import pyproj
 import pyvista as pv
 import numpy as np 
+from scipy.ndimage import binary_dilation
 
 
 #################################################################################
@@ -724,7 +725,7 @@ class PathPlannerv2:
         return self.slice_state_space
     
 
-    def plot_slice_state_space(self):
+    def plot_slice_state_space(self, plot_dilated_flags: bool = False):
         
         if self.slice_state_space is None:
             logging.error("Call build_slice_state_space() first.")
@@ -749,6 +750,37 @@ class PathPlannerv2:
             cmap='gray_r',
             aspect='auto'
         )
+
+        if plot_dilated_flags:
+            if "obstacle_mask_dilated" in ss:
+                dilated = ss["obstacle_mask_dilated"]
+
+                ax.imshow(
+                    dilated.T,
+                    origin='lower',
+                    extent=[s_vals[0], s_vals[-1], r_vals[0], r_vals[-1]],
+                    cmap='Oranges',
+                    alpha=0.35,
+                    aspect='auto'
+                )
+
+                ax.text(
+                    0.01, 0.95,
+                    f"Dilated obstacles (+{ss.get('dilation_m', '?')} m)",
+                    transform=ax.transAxes,
+                    fontsize=10,
+                    color="darkorange",
+                    ha="left"
+                )
+            else:
+                ax.text(
+                    0.01, 0.95,
+                    "Dilation requested but not computed.\nRun dilate_obstacles() first.",
+                    transform=ax.transAxes,
+                    fontsize=10,
+                    color="red",
+                    ha="left"
+                )
 
 
         ax.scatter(0, 0, c='red', s=60, label="Start of Climb (s=0, r=0)")
@@ -782,9 +814,7 @@ class PathPlannerv2:
                 anchor_r + north_r * scale * 1.1,
                 "N", color="blue", fontsize=14, ha="center")
 
-        # ----------------------------------------------------------------------
-        # Labels & legend
-        # ----------------------------------------------------------------------
+
         ax.set_xlabel("Distance Along Climb (m)")
         ax.set_ylabel("Perpendicular Distance (m)")
         ax.set_title("Obstacle Mask in Climb Direction State Space")
@@ -793,3 +823,30 @@ class PathPlannerv2:
         fig.tight_layout()
         self.state_space_plot = (fig, ax)
         return fig, ax
+
+
+    def dilate_obstacles(self, dilation_m: int = 30):
+
+        if self.slice_state_space is None:
+            logging.error("Call build_slice_state_space() before dilating obstacles.")
+            return None
+
+        ss = self.slice_state_space
+        obst = ss["obstacle_mask"]
+        r_vals = ss["r_vals"]
+
+
+        meters_per_r_pixel = (r_vals[-1] - r_vals[0]) / len(r_vals)
+        dilation_pixels = max(1, int(dilation_m / meters_per_r_pixel))
+
+        dilated = binary_dilation(obst, iterations=dilation_pixels)
+
+        self.slice_state_space["obstacle_mask_dilated"] = dilated
+        self.slice_state_space["dilation_m"] = dilation_m
+        self.slice_state_space["dilation_pixels"] = dilation_pixels
+
+        logging.info(
+            f"Dilated obstacle mask created: {dilation_m} m → {dilation_pixels} pixels"
+        )
+
+        return dilated
