@@ -16,6 +16,7 @@ from rasterio.transform import rowcol
 from pyproj import Transformer
 import pyproj
 import pyvista as pv
+import numpy as np 
 
 
 #################################################################################
@@ -384,6 +385,8 @@ class PathPlannner:
 
 class PathPlannerv2: 
     def __init__(self):
+        self.cellsize = 10
+
         self.simple_dem_load()
         self.start_info = self._read_yaml(filename="geo_info", path=["locations","mvo_helipad"])
         self.end_info   = self._read_yaml(filename="geo_info", path=["locations","soufriere_hills_summit"])
@@ -420,8 +423,8 @@ class PathPlannerv2:
             elev = self.get_elevation(x, y)
             elevations.append(elev)
 
-        cellsize = 10
-        distances = np.sqrt((xs - xs[0])**2 + (ys - ys[0])**2) * cellsize
+        # cellsize = 10
+        distances = np.sqrt((xs - xs[0])**2 + (ys - ys[0])**2) * self.cellsize
         return distances, elevations
 
     def simple_dem_load(self, dem_path: str = "Maps/MontserratDEMv3.tif"):
@@ -505,6 +508,10 @@ class PathPlannerv2:
         fig, ax = self.plot_elevation_profile(
             title="Elevation Profile with Horizontal Cruise"
         )
+        self.cruise_distance = cruise_dist
+
+        start_alt = self.get_elevation(self.start_info['dem_x'], self.start_info['dem_y']) + start_alt
+        self.initial_cruise_alt = start_alt
 
         ax.plot(
             [0, cruise_dist],
@@ -529,3 +536,130 @@ class PathPlannerv2:
 
         return fig, ax
     
+
+    def build_slice_state_space(
+            self, 
+            cruise_dist_m = 3000.0,
+            end_clearance_m = 200.0,
+            route_clearance_m = 250.0, #the clearance to the ground below for creating blocked areas 
+            initial_alt = 300, #initial cruise altitude
+            state_space_width_m = 1000.0,
+            n_climb_dir = 400, #resolution in climb direction (S)
+            n_perp_climb = 200 #resolution perpendicular to climb (R)
+        ):
+        """
+        Docstring for build_slice_state_space
+        
+        :param self: Description
+        :param cruise_dist_m: Description
+        :param end_clearance_m: Description
+        :param route_clearance_m: Description
+        :param state_space_width_m: Description
+        :param n_climb_dir: Description
+        :param n_perp_climb: Description
+        :param initial_alt: Description
+        """
+        logging.info("Begginnig state space definition...")
+
+        if hasattr(self, "cruise_distance"):
+            cruise_dist_m = self.cruise_distance
+        if hasattr(self, "initial_cruise_alt"):
+            initial_alt = self.initial_cruise_alt
+
+        S = np.array([self.start_info['dem_x'], self.start_info['dem_y']], float)
+        E = np.array([self.end_info['dem_x'], self.end_info['dem_y']], float)
+
+
+        axis_vect = E - S 
+        axis_length = np.linalg.norm(axis_vect) #length of vector start to finish
+        axis_unit = axis_vect / axis_length #normalised vector
+
+        cruise_pix = cruise_dist_m / self.cellsize
+        start_climb = S + axis_unit * cruise_pix # location where cruise ends and climb begins
+
+        remaining_pix = axis_length - cruise_pix
+        L_m = remaining_pix * self.cellsize #remaining distance 
+
+        logging.info(f"Remaining distance to travel (as the crow flies): {L_m}m.")
+
+        #now find the highest summit point in the vicinity of the defined 'end point'
+
+        radius_m = 50.0
+        radius_pix = int(radius_m / self.cellsize)
+
+        cx, cy = int(E[0]), int(E[1])  # summit pixel center
+
+        max_elev = -np.inf
+
+        for dy in range(-radius_pix, radius_pix + 1):
+            for dx in range(-radius_pix, radius_pix + 1):
+
+                # Only include points inside a circular radius
+                if dx*dx + dy*dy <= radius_pix*radius_pix:
+
+                    xx = cx + dx
+                    yy = cy + dy
+
+                    elev = self.get_elevation(xx, yy)
+                    if elev is None or np.isnan(elev):
+                        continue
+
+                    if elev > max_elev:
+                        max_elev = elev
+
+        summit_elev = max_elev
+        final_alt = summit_elev + end_clearance_m
+
+        def plane_height(s_): #plane height as a function of S (underscore after to distibguish from S )
+            return initial_alt + (final_alt - initial_alt) * (s_ /L_m)
+        
+
+        side_unit = np.array([-axis_unit[1], axis_unit[0]]) #90deg rotated vecotr in the horizontal plane
+
+        #create statespace grids
+
+        s_vals = np.linspace( 0, L_m, n_climb_dir) #array along climb
+        r_vals = np.linspace( -state_space_width_m, state_space_width_m, n_perp_climb) #array perpendicular to climb
+
+        terrain = np.full((n_climb_dir, n_perp_climb), np.nan) #elevation height
+        plane   = np.full((n_climb_dir, n_perp_climb), np.nan) #plane 
+        clear   = np.full((n_climb_dir, n_perp_climb), np.nan) # vertical clearance
+        obst    = np.zeros((n_climb_dir, n_perp_climb), bool) #obstacle flag (if clearance less than threshold)
+
+        #POPULATE THE GRIDS
+
+        for i, s in enumerate(s_vals):
+            Hp = plane_height(s) #plane height at this position
+            for j, r in enumerate(r_vals):
+                along_pix = s / self.cellsize #m conversion
+                side_pix  = r / self.cellsize
+                xy = + axis_unit * along_pix + side_unit * side_pix
+                x_pix, y_pix = xy[0], xy[1]
+
+                elev = self.get_elevation(x_pix, y_pix)
+                if elev is None or np.isnan(elev):
+                    continue
+
+                terrain[i, j] = elev
+                plane[i, j]   = Hp
+                clear[i, j]   = Hp - elev
+
+                if Hp - elev < route_clearance_m:
+                    obst[i, j] = True
+
+        self.slice_state_space = {
+            "s_vals": s_vals,
+            "r_vals": r_vals,
+            "terrain_height": terrain,
+            "plane_height": plane,
+            "clearance": clear,
+            "obstacle_mask": obst,
+            "axis_unit": axis_unit,
+            "side_unit": side_unit,
+            "start_climb_xy": start_climb,
+            "L_m": L_m,
+            "H_start": initial_alt,
+            "H_end": final_alt,
+        }
+
+        return self.slice_state_space

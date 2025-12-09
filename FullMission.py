@@ -24,9 +24,17 @@ def main():
     #     filename= "Test_Map_1"
     # )
 
+    cruise_distance = 3000
+
     Planner = PathPlanning.PathPlannerv2()
     Planner.plot_elevation_profile()
-    Planner.plot_horizontal_cruise(start_alt=300)
+    Planner.plot_horizontal_cruise(start_alt=100, cruise_dist=cruise_distance)
+
+    Planner.build_slice_state_space(
+        cruise_dist_m=cruise_distance, 
+        end_clearance_m= 200,
+        route_clearance_m= 300
+    )
 
 
 if __name__ == "__main__":
