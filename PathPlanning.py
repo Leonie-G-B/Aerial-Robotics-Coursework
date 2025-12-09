@@ -522,10 +522,10 @@ class PathPlannerv2:
 
         return fig, ax
 
-    def plot_2d_slice_profile(self):
+    def plot_2d_slice_profile(self, title: str = "Elevation Profile with Horizontal Cruise"):
 
         fig, ax = self.plot_elevation_profile(
-            title="Elevation Profile with Horizontal Cruise"
+            title=title
         )
         start_alt = self.initial_cruise_alt
 
@@ -754,37 +754,33 @@ class PathPlannerv2:
         ax.scatter(0, 0, c='red', s=60, label="Start of Climb (s=0, r=0)")
         ax.scatter(L_m, 0, c='blue', s=60, label="End of Climb (Summit)")
 
-
         # axis_unit is a direction in DEM pixels (dx, dy).
         # DEM Y increases downward, so north is -y direction
-        north_vec_dem = np.array([0, -1])   # DEM north = decreasing Y
+        # DEM north vector: y decreases upward
+        north_dem = np.array([0, -1.0])
 
-        # Convert DEM north into state-space coordinates (s,r plane)
+        north_s = np.dot(north_dem, axis_unit)
+        north_r = np.dot(north_dem, side_unit)
 
-        north_s = np.dot(north_vec_dem, axis_unit)
-        north_r = np.dot(north_vec_dem, side_unit)
-
-        # Normalise for display length
-        length = 0.1 * L_m        
         norm = np.sqrt(north_s**2 + north_r**2)
-        north_s *= length / norm
-        north_r *= length / norm
+        north_s /= norm
+        north_r /= norm
 
-        # Arrow anchor (top-right corner with some margin)
-        anchor_s = 0.85 * L_m
-        anchor_r = 0.8 * max(abs(r_vals[0]), abs(r_vals[-1]))
+        scale = 0.1 * s_vals[-1]
+        anchor_s = 0.9 * s_vals[-1]
+        anchor_r = 0.8 * r_vals[-1]
 
-        ax.arrow(
-            anchor_s, anchor_r,
-            north_s, north_r,
-            head_width=0.07 * length,
-            head_length=0.1 * length,
-            fc='blue',
-            ec='blue',
-            linewidth=2
-        )
-        ax.text(anchor_s + north_s*1.1, anchor_r + north_r*1.1, "N",
-                fontsize=14, color='blue', fontweight='bold')
+        # Draw arrow
+        ax.arrow(anchor_s, anchor_r,
+                north_s * scale,
+                north_r * scale,
+                head_width=0.05 * scale,
+                head_length=0.08 * scale,
+                fc='blue', ec='blue', linewidth=2)
+
+        ax.text(anchor_s + north_s * scale * 1.1,
+                anchor_r + north_r * scale * 1.1,
+                "N", color="blue", fontsize=14, ha="center")
 
         # ----------------------------------------------------------------------
         # Labels & legend

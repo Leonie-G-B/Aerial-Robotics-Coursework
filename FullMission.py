@@ -24,13 +24,13 @@ def main():
     #     filename= "Test_Map_1"
     # )
 
-    cruise_distance = 3000
+    cruise_distance =2800
 
     Planner = PathPlanning.PathPlannerv2(
-        cruise_alt_above_ground_initial = 100,
+        cruise_alt_above_ground_initial = 125,
         h_cruise_distance  = cruise_distance,
-        summit_clearance = 200,
-        terrain_clearance = 150
+        summit_clearance = 150,
+        terrain_clearance = 130
     )
     # Planner.plot_elevation_profile()
     Planner.plot_2d_slice_profile()
@@ -38,8 +38,8 @@ def main():
     Planner.build_slice_state_space()
 
     Planner.plot_slice_state_space()
-    
-    Planner.plot_2d_slice_profile()
+
+    Planner.plot_2d_slice_profile(title= "2D Elevation Slice with horizontal cruise and climb.")
 
 
 if __name__ == "__main__":
