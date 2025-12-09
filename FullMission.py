@@ -26,15 +26,20 @@ def main():
 
     cruise_distance = 3000
 
-    Planner = PathPlanning.PathPlannerv2()
-    Planner.plot_elevation_profile()
-    Planner.plot_horizontal_cruise(start_alt=100, cruise_dist=cruise_distance)
-
-    Planner.build_slice_state_space(
-        cruise_dist_m=cruise_distance, 
-        end_clearance_m= 200,
-        route_clearance_m= 300
+    Planner = PathPlanning.PathPlannerv2(
+        cruise_alt_above_ground_initial = 100,
+        h_cruise_distance  = cruise_distance,
+        summit_clearance = 200,
+        terrain_clearance = 150
     )
+    # Planner.plot_elevation_profile()
+    Planner.plot_2d_slice_profile()
+
+    Planner.build_slice_state_space()
+
+    Planner.plot_slice_state_space()
+    
+    Planner.plot_2d_slice_profile()
 
 
 if __name__ == "__main__":

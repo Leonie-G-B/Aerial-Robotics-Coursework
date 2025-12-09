@@ -384,16 +384,35 @@ class PathPlannner:
 
 
 class PathPlannerv2: 
-    def __init__(self):
-        self.cellsize = 10
+    def __init__(self,
+                  cruise_alt_above_ground_initial = 100,
+                  h_cruise_distance  = 3000,
+                  summit_clearance = 200,
+                  terrain_clearance = 150,
+                  plot_dem_on_start = False):
+        self.cellsize = 10#
+        self.cruise_alt_ag_initial = cruise_alt_above_ground_initial
+        self.h_cruise_distance = h_cruise_distance
+        self.summit_clearance = summit_clearance
+        self.terrain_clearance = terrain_clearance
 
-        self.simple_dem_load()
         self.start_info = self._read_yaml(filename="geo_info", path=["locations","mvo_helipad"])
         self.end_info   = self._read_yaml(filename="geo_info", path=["locations","soufriere_hills_summit"])
 
-        self.plot_dem()
+        self.simple_dem_load()
+
+        ground_start = self.get_elevation(  
+            self.start_info['dem_x'],
+            self.start_info['dem_y']
+            )
+
+        if plot_dem_on_start:
+            self.plot_dem()
+
+        self.initial_cruise_alt = ground_start + self.cruise_alt_ag_initial
         
-        self.mission_slice = []
+        self.mission_slice = None
+        self.slice_state_space = None
 
 
     def _read_yaml(self, filename: str, path: list) -> dict:
@@ -503,18 +522,15 @@ class PathPlannerv2:
 
         return fig, ax
 
-    def plot_horizontal_cruise(self, start_alt: int = 200, cruise_dist: int = 3000):
+    def plot_2d_slice_profile(self):
 
         fig, ax = self.plot_elevation_profile(
             title="Elevation Profile with Horizontal Cruise"
         )
-        self.cruise_distance = cruise_dist
-
-        start_alt = self.get_elevation(self.start_info['dem_x'], self.start_info['dem_y']) + start_alt
-        self.initial_cruise_alt = start_alt
+        start_alt = self.initial_cruise_alt
 
         ax.plot(
-            [0, cruise_dist],
+            [0, self.h_cruise_distance],
             [start_alt, start_alt],
             color="red",
             linestyle="--",
@@ -523,26 +539,66 @@ class PathPlannerv2:
         )
 
         ax.fill_between(
-            [0, cruise_dist],
+            [0, self.h_cruise_distance],
             [start_alt, start_alt],
             color="pink",
             alpha=0.3
         )
 
-        ax.legend()
-        # fig.show()
+        if self.slice_state_space is not None:
+            ss = self.slice_state_space
+            s_vals   = ss["s_vals"]
+            H_start  = ss["H_start"]
+            H_end    = ss["H_end"]
+            L_m      = ss["L_m"]
 
-        self.mission_slice = [ax, fig]
+            # Define same plane function used in state space
+            def plane_height(s):
+                return H_start + (H_end - H_start) * (s / L_m)
+
+            # Build climb path arrays
+            climb_x = s_vals
+            climb_y = plane_height(s_vals)
+
+            # Plot climb line
+            ax.plot(
+                climb_x + self.h_cruise_distance,
+                climb_y,
+                color="blue",
+                linestyle = "--",
+                linewidth=2,
+                label="Climb Plane (to summit clearance)"
+            )
+
+            # Optional shading under climb plane
+            ax.fill_between(
+                climb_x + self.h_cruise_distance,
+                climb_y,
+                color="lightblue",
+                alpha=0.2
+            )
+
+        else:
+            ax.text(
+                0.98, 0.02,
+                "State space not built yet — climb line unavailable",
+                ha="right", va="bottom",
+                transform=ax.transAxes,
+                fontsize=8,
+                color="gray"
+            )
+
+        ax.legend()
+        fig.tight_layout()
+
+        # Store reusable view
+        self.mission_slice = (fig, ax)
 
         return fig, ax
     
 
     def build_slice_state_space(
             self, 
-            cruise_dist_m = 3000.0,
-            end_clearance_m = 200.0,
-            route_clearance_m = 250.0, #the clearance to the ground below for creating blocked areas 
-            initial_alt = 300, #initial cruise altitude
             state_space_width_m = 1000.0,
             n_climb_dir = 400, #resolution in climb direction (S)
             n_perp_climb = 200 #resolution perpendicular to climb (R)
@@ -561,10 +617,11 @@ class PathPlannerv2:
         """
         logging.info("Begginnig state space definition...")
 
-        if hasattr(self, "cruise_distance"):
-            cruise_dist_m = self.cruise_distance
-        if hasattr(self, "initial_cruise_alt"):
-            initial_alt = self.initial_cruise_alt
+        cruise_dist_m = self.h_cruise_distance
+        initial_alt   = self.initial_cruise_alt
+        end_clearance_m = self.summit_clearance
+        route_clearance_m = self.terrain_clearance
+
 
         S = np.array([self.start_info['dem_x'], self.start_info['dem_y']], float)
         E = np.array([self.end_info['dem_x'], self.end_info['dem_y']], float)
@@ -633,7 +690,7 @@ class PathPlannerv2:
             for j, r in enumerate(r_vals):
                 along_pix = s / self.cellsize #m conversion
                 side_pix  = r / self.cellsize
-                xy = + axis_unit * along_pix + side_unit * side_pix
+                xy = start_climb + axis_unit * along_pix + side_unit * side_pix
                 x_pix, y_pix = xy[0], xy[1]
 
                 elev = self.get_elevation(x_pix, y_pix)
@@ -662,4 +719,81 @@ class PathPlannerv2:
             "H_end": final_alt,
         }
 
+        logging.info(f"Any obstacles: {self.slice_state_space['obstacle_mask'].any()}\nMin clearnace: {np.nanmin(self.slice_state_space['clearance'])}m.")
+
         return self.slice_state_space
+    
+
+    def plot_slice_state_space(self):
+        
+        if self.slice_state_space is None:
+            logging.error("Call build_slice_state_space() first.")
+            return 
+        
+        ss = self.slice_state_space
+        s_vals = ss['s_vals']
+        r_vals = ss['r_vals']
+        obst   = ss['obstacle_mask']
+
+        axis_unit = ss["axis_unit"]       # direction of climb on DEM
+        side_unit = ss["side_unit"]       # perpendicular direction
+        L_m       = ss["L_m"]             # total climb distance
+
+        fig, ax = plt.subplots(figsize=(10,6))
+
+        # Plot obstacle mask
+        ax.imshow(
+            obst.T, 
+            origin='lower',
+            extent=[s_vals[0], s_vals[-1], r_vals[0], r_vals[-1]],
+            cmap='gray_r',
+            aspect='auto'
+        )
+
+
+        ax.scatter(0, 0, c='red', s=60, label="Start of Climb (s=0, r=0)")
+        ax.scatter(L_m, 0, c='blue', s=60, label="End of Climb (Summit)")
+
+
+        # axis_unit is a direction in DEM pixels (dx, dy).
+        # DEM Y increases downward, so north is -y direction
+        north_vec_dem = np.array([0, -1])   # DEM north = decreasing Y
+
+        # Convert DEM north into state-space coordinates (s,r plane)
+
+        north_s = np.dot(north_vec_dem, axis_unit)
+        north_r = np.dot(north_vec_dem, side_unit)
+
+        # Normalise for display length
+        length = 0.1 * L_m        
+        norm = np.sqrt(north_s**2 + north_r**2)
+        north_s *= length / norm
+        north_r *= length / norm
+
+        # Arrow anchor (top-right corner with some margin)
+        anchor_s = 0.85 * L_m
+        anchor_r = 0.8 * max(abs(r_vals[0]), abs(r_vals[-1]))
+
+        ax.arrow(
+            anchor_s, anchor_r,
+            north_s, north_r,
+            head_width=0.07 * length,
+            head_length=0.1 * length,
+            fc='blue',
+            ec='blue',
+            linewidth=2
+        )
+        ax.text(anchor_s + north_s*1.1, anchor_r + north_r*1.1, "N",
+                fontsize=14, color='blue', fontweight='bold')
+
+        # ----------------------------------------------------------------------
+        # Labels & legend
+        # ----------------------------------------------------------------------
+        ax.set_xlabel("Distance Along Climb (m)")
+        ax.set_ylabel("Perpendicular Distance (m)")
+        ax.set_title("Obstacle Mask in Climb Direction State Space")
+        ax.legend(loc='upper left')
+
+        fig.tight_layout()
+        self.state_space_plot = (fig, ax)
+        return fig, ax
