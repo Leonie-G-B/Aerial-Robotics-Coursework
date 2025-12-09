@@ -26,6 +26,7 @@ def main():
 
     Planner = PathPlanning.PathPlannerv2()
     Planner.plot_elevation_profile()
+    Planner.plot_horizontal_cruise(start_alt=300)
 
 
 if __name__ == "__main__":

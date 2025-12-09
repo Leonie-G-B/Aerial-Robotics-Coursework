@@ -389,6 +389,8 @@ class PathPlannerv2:
         self.end_info   = self._read_yaml(filename="geo_info", path=["locations","soufriere_hills_summit"])
 
         self.plot_dem()
+        
+        self.mission_slice = []
 
 
     def _read_yaml(self, filename: str, path: list) -> dict:
@@ -485,19 +487,45 @@ class PathPlannerv2:
                 valid_x,
                 valid_y
         )
+            
+        fig, ax = plt.subplots(figsize=(10,4))
 
-        figure = plt.figure(figsize=(10,4))
-        figure.plot(distances, elevations, linewidth=2)
-        figure.fill_between(distances, elevations, color="lightgreen", alpha=0.5)
-        figure.xlabel("Distance (m)")
-        figure.ylabel("Elevation (m)")
-        figure.title(title)
-        figure.grid(True)
-        figure.tight_layout()
-        figure.show()
+        ax.plot(distances, elevations, linewidth=2)
+        ax.fill_between(distances, elevations, color="lightgreen", alpha=0.5)
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Elevation (m)")
+        ax.set_title(title)
+        ax.grid(True)
+        fig.tight_layout()
 
-        return figure
+        return fig, ax
 
     def plot_horizontal_cruise(self, start_alt: int = 200, cruise_dist: int = 3000):
 
-        figure 
+        fig, ax = self.plot_elevation_profile(
+            title="Elevation Profile with Horizontal Cruise"
+        )
+
+        ax.plot(
+            [0, cruise_dist],
+            [start_alt, start_alt],
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label="Horizontal Cruise"
+        )
+
+        ax.fill_between(
+            [0, cruise_dist],
+            [start_alt, start_alt],
+            color="pink",
+            alpha=0.3
+        )
+
+        ax.legend()
+        # fig.show()
+
+        self.mission_slice = [ax, fig]
+
+        return fig, ax
+    
