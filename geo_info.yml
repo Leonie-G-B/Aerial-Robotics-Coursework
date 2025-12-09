@@ -8,12 +8,16 @@ locations:
   mvo_helipad:
     latitude: 16.748513
     longitude: -62.212618
+    dem_x : 372
+    dem_y: 858
     altitude: 233
     heading: 140
     description: "MVO Helipad, Montserrat."
   soufriere_hills_summit:
     latitude: 16.709383
     longitude: -62.177714
+    dem_x: 750
+    dem_y: 1275
     altitude: 860
     heading: 320
     description: "Rough location of Soufriere Hills Summit."

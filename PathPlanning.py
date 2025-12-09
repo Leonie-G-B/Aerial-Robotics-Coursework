@@ -464,79 +464,40 @@ class PathPlannerv2:
         plt.scatter([end_x], [end_y], c="blue")
         plt.show()
 
-    def plot_elevation_profile(self):
+    def plot_elevation_profile(self, title: str = "Elevation Profile Along Line"):
         distances, elevations = self.get_elevation_profile_of_line(
             self.start_info,
             self.end_info,
             num_samples=200
         )
 
-        plt.figure(figsize=(10,4))
-        plt.plot(distances, elevations, linewidth=2)
-        plt.xlabel("Distance (m)")
-        plt.ylabel("Elevation (m)")
-        plt.title("Elevation Slice Along Speciefied line")
-        plt.grid(True)
-        plt.tight_layout()
-        plt.show()
+        #interpolate nans
+        elevations = np.array(elevations, dtype=float)
+        nans = np.isnan(elevations)
 
-    def cone_mask(self, start, end, radius_m=250, cellsize=10):
-        sx, sy = start
-        ex, ey = end
+        if np.any(nans):
+            valid_x = np.where(~nans)[0]
+            valid_y = elevations[~nans]
 
-        radius_px = radius_m / cellsize
+            # linear interpolate missing values
+            elevations[nans] = np.interp(
+                np.where(nans)[0],
+                valid_x,
+                valid_y
+        )
 
-        # Build a meshgrid of pixel indices
-        ys, xs = np.indices(self.data.shape)
+        figure = plt.figure(figsize=(10,4))
+        figure.plot(distances, elevations, linewidth=2)
+        figure.fill_between(distances, elevations, color="lightgreen", alpha=0.5)
+        figure.xlabel("Distance (m)")
+        figure.ylabel("Elevation (m)")
+        figure.title(title)
+        figure.grid(True)
+        figure.tight_layout()
+        figure.show()
 
-        dist = np.sqrt((xs - int(ex))**2 + (ys - int(ey))**2)
+        return figure
 
-        mask_radius = dist <= radius_px
+    def plot_horizontal_cruise(self, start_alt: int = 200, cruise_dist: int = 3000):
 
-        v_s = np.array([sx - ex, sy - ey])
-        v_s = v_s / np.linalg.norm(v_s)
-
-        vx = xs - ex
-        vy = ys - ey
-        norms = np.sqrt(vx*vx + vy*vy) + 1e-6
-
-        vx /= norms
-        vy /= norms
-
-        dot = vx * v_s[0] + vy * v_s[1]
-
-        mask_angle = dot > np.cos(np.deg2rad(30))
-
-        return mask_radius & mask_angle
-
-    def create_cone_mesh(self, start, end, radius_m=250, cellsize=10):
-        mask = self.cone_mask(start, end, radius_m, cellsize)
-
-
-        ys, xs = np.where(mask)
-        zs = self.data[ys, xs]
-
-
-        valid = ~np.isnan(zs)
-        xs = xs[valid]
-        ys = ys[valid]
-        zs = zs[valid]
-
-        xs_m = xs * cellsize
-        ys_m = ys * cellsize
-
-        points = np.column_stack((xs_m, ys_m, zs))
-
-        cloud = pv.PolyData(points)
-        return cloud
-    
-    def plot_cone_mesh(self, radius_m = 250):
-        start = (self.start_info['dem_x'], self.start_info['dem_y'])
-        end   = (self.end_info['dem_x'],   self.end_info['dem_y'])
-
-        mesh = self.create_cone_mesh(start, end, radius_m)
-
-        plotter = pv.Plotter()
-        plotter.add_points(mesh, render_points_as_spheres=True, point_size=3, cmap="terrain")
-        plotter.add_axes()
-        plotter.show()
+        figure 
