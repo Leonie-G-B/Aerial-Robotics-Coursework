@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from os import path
 import requests
 import rasterio
-from rasterio.transform import rowcol
+from rasterio.transform import  xy as transform_xy
 from pyproj import Transformer
 import pyproj
 import pyvista as pv
@@ -475,7 +475,7 @@ class PathPlannerv2:
 
             ax.plot(
                 px, py,
-                color="lime",
+                color="royalblue",
                 linewidth=2.0,
                 label="A* Final Path"
             )
@@ -724,3 +724,89 @@ class PathPlannerv2:
         logging.info(f"A* path found with {len(path)} nodes.")
 
         return path, path_coords
+
+
+    def get_astar_route_length_m(self):
+        """
+        Returns the climb route length in metres.
+        """
+        if "astar_path_coords" not in self.slice_state_space:
+            raise ValueError("No A* path found. Run astar_visibility_path() first.")
+
+        ss = self.slice_state_space
+        path_sr = ss["astar_path_coords"]
+
+        climb_len = 0.0
+        for (s0, r0), (s1, r1) in zip(path_sr[:-1], path_sr[1:]):
+            ds = s1 - s0
+            dr = r1 - r0
+            climb_len += np.hypot(ds, dr)
+
+        return climb_len
+    
+
+    def plot_route_from_above_DEM(self, title: str = "A* Route from Above"):
+
+        if "astar_path_coords" not in self.slice_state_space:
+            raise ValueError("No A* path found. Run astar_visibility_path() first.")
+        
+        ss = self.slice_state_space
+        path_sr = ss["astar_path_coords"]
+
+        axis_unit = ss["axis_unit"]
+        side_unit = ss["side_unit"]
+        start_climb_xy = ss["start_climb_xy"]
+
+        xs_pix = []
+        ys_pix = []
+
+        for (s, r) in path_sr:
+            along_pix = s / self.cellsize
+            side_pix  = r / self.cellsize
+
+            xy = start_climb_xy + axis_unit * along_pix + side_unit * side_pix
+            x_pix, y_pix = xy[0], xy[1]
+
+            xs_pix.append(x_pix)
+            ys_pix.append(y_pix)
+
+        start_px = np.array([self.start_info["dem_x"], self.start_info["dem_y"]])
+        climb_px = start_climb_xy
+
+        cruise_xs = [start_px[0], climb_px[0]]
+        cruise_ys = [start_px[1], climb_px[1]]
+
+        # plot the initial cruise bit
+        plt.figure(figsize=(10, 8))
+        plt.imshow(self.data, cmap="terrain")
+        plt.colorbar(label="Elevation")
+
+        plt.plot(
+            cruise_xs,
+            cruise_ys,
+            color="red",
+            linewidth=2.5,
+            linestyle="-",
+            label=f"Initial Cruise ({self.h_cruise_distance}m)"
+            )
+
+        climb_dist = self.get_astar_route_length_m()
+
+        # Route in DEM pixel space
+        plt.plot(xs_pix, ys_pix, color="blue", linewidth=2, linestyle = "-",label=f"A* Route ({climb_dist:.1f}m)")
+
+        # Mark start & summit
+        plt.scatter(
+            self.start_info["dem_x"],
+            self.start_info["dem_y"],
+            c="red", edgecolors="black", s=100, label="Start location (MVO Helipad)"
+        )
+        plt.scatter(
+            self.end_info["dem_x"],
+            self.end_info["dem_y"],
+            c="blue", edgecolors="black", s=100, label="Soufrière Hills Summit"
+        )
+
+        plt.title(title)
+        plt.legend()
+        plt.show()

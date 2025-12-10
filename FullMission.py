@@ -48,8 +48,17 @@ def main():
     Planner.extract_obstacle_polygons()
     Planner.build_visibility_graph()
 
-    Planner.plot_slice_state_space(title = "Visibility graph in Climb plane state-space",
-        plot_dilated_flags=True, plot_visibility_graph=True)
+    # Planner.plot_slice_state_space(title = "Visibility graph in Climb plane state-space",
+    #     plot_dilated_flags=True, plot_visibility_graph=True)
+    
+    Planner.astar_visibility_path()
+    Planner.plot_slice_state_space(title = "Node Visibility Graph and Final Path Planning Route (A*)",
+                                   plot_dilated_flags=True,
+                                   plot_visibility_graph = True,
+                                   plot_final_route = True)
+    
+    Planner.plot_route_from_above_DEM(
+        title = f"A* Path Planning Route Result.\nInitial cruise: {cruise_distance}m")
 
 
 if __name__ == "__main__":
