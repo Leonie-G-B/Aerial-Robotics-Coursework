@@ -43,7 +43,7 @@ def main():
 
     Planner.dilate_obstacles(dilation_m = 50)
 
-    # Planner.plot_slice_state_space(plot_dilated_flags=True)
+    Planner.plot_slice_state_space(plot_dilated_flags=True)
 
     Planner.extract_obstacle_polygons()
     Planner.build_visibility_graph()
@@ -63,3 +63,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    print("Done")

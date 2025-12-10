@@ -179,7 +179,7 @@ class PathPlannerv2:
         ax.plot(
             [0, self.h_cruise_distance],
             [start_alt, start_alt],
-            color="red",
+            color="crimson",
             linestyle="--",
             linewidth=2,
             label="Horizontal Cruise"
@@ -211,7 +211,7 @@ class PathPlannerv2:
             ax.plot(
                 climb_x + self.h_cruise_distance,
                 climb_y,
-                color="blue",
+                color="royalblue",
                 linestyle = "--",
                 linewidth=2,
                 label="Climb Plane (to summit clearance)"
@@ -221,7 +221,7 @@ class PathPlannerv2:
             ax.fill_between(
                 climb_x + self.h_cruise_distance,
                 climb_y,
-                color="lightblue",
+                color="royalblue",
                 alpha=0.2
             )
 
@@ -320,6 +320,14 @@ class PathPlannerv2:
         
 
         side_unit = np.array([-axis_unit[1], axis_unit[0]]) #90deg rotated vecotr in the horizontal plane
+        test_point = np.array([self.start_info['dem_x'], self.start_info['dem_y']])
+        p0 = test_point
+        p1 = test_point + side_unit * (5 / self.cellsize) 
+
+        # If y increases => movement is downward (south)
+        if p1[1] > p0[1]:
+
+            side_unit = -side_unit
 
         #create statespace grids
 
@@ -447,6 +455,7 @@ class PathPlannerv2:
                     ax.fill(xs, ys, color="pink", alpha=0.2)
 
                 node_positions = {}
+                first = True
 
                 for name in G:
                     if name == "start":
@@ -459,15 +468,27 @@ class PathPlannerv2:
                         pos     = polys[poly_id].exterior.coords[v_id]
 
                     node_positions[name] = pos
+                    
 
-                    if name not in ("start" or "goal"):
-                        ax.scatter(pos[0], pos[1], c="cyan", s=30)
+                    if first: 
+                        ax.scatter(pos[0], pos[1], c="cyan", s=50, label="Visibility Graph Nodes")
+                        first = False
+                    else:
+                        if name not in ("start" or "goal"):
+                            ax.scatter(pos[0], pos[1], c="cyan", s=30)
+                
+                first = True
 
                 for a in G:
                     for b in G[a]:
                         pa = node_positions[a]
                         pb = node_positions[b]
-                        ax.plot([pa[0], pb[0]], [pa[1], pb[1]],
+                        if first:
+                            ax.plot([pa[0], pb[0]], [pa[1], pb[1]],
+                                color="orchid", alpha=0.4, linewidth=1, linestyle = "--", label = "Visibility Edge Vectors")
+                            first = False
+                        else:
+                            ax.plot([pa[0], pb[0]], [pa[1], pb[1]],
                                 color="orchid", alpha=0.4, linewidth=1, linestyle = "--")
 
         if plot_final_route and "astar_path_coords" in ss:
@@ -486,8 +507,21 @@ class PathPlannerv2:
                 s=15
             )
                 
-        ax.scatter(0, 0, c='red', s=80, label="Start of Climb (s=0, r=0)")
-        ax.scatter(L_m, 0, c='blue', s=80, label="End of Climb (Summit)")
+        ax.scatter(
+            0, 0, c='red', s=120,
+            label="Start of Climb (s=0, r=0)",
+            edgecolor="black",
+            linewidth=0.8,
+            zorder=10 #bring to front
+        )
+
+        ax.scatter(
+            L_m, 0, c='blue', s=120,
+            label="End of Climb (Summit)",
+            edgecolor="black",
+            linewidth=0.8,
+            zorder=10
+)
 
 
         # axis_unit is a direction in DEM pixels (dx, dy).
@@ -506,24 +540,24 @@ class PathPlannerv2:
         anchor_s = 0.9 * s_vals[-1]
         anchor_r = 0.8 * r_vals[-1]
 
-        # # Draw arrow
-        # ax.arrow(anchor_s, anchor_r,
-        #         north_s * scale,
-        #         north_r * scale,
-        #         head_width=0.05 * scale,
-        #         head_length=0.08 * scale,
-        #         fc='blue', ec='blue', linewidth=2)
+        # Draw arrow
+        ax.arrow(anchor_s, anchor_r,
+                north_s * scale,
+                north_r * scale,
+                head_width=0.05 * scale,
+                head_length=0.08 * scale,
+                fc='blue', ec='blue', linewidth=2)
         
-        # label_offset = 0.05 * scale
-        # ax.text(
-        #     anchor_s - north_s * label_offset,
-        #     anchor_r - north_r * label_offset,
-        #     "N",
-        #     color="blue",
-        #     fontsize=14,
-        #     ha="center",
-        #     va="center"
-        #     )
+        label_offset = 0.2 * scale
+        ax.text(
+            anchor_s - north_s * label_offset,
+            anchor_r - north_r * label_offset,
+            "N",
+            color="blue",
+            fontsize=14,
+            ha="center",
+            va="center"
+            )
 
         ax.set_xlabel("Distance Along Climb (m)")
         ax.set_ylabel("Perpendicular Distance (m)")
@@ -784,7 +818,7 @@ class PathPlannerv2:
         plt.plot(
             cruise_xs,
             cruise_ys,
-            color="red",
+            color="crimson",
             linewidth=2.5,
             linestyle="-",
             label=f"Initial Cruise ({self.h_cruise_distance}m)"
@@ -793,7 +827,7 @@ class PathPlannerv2:
         climb_dist = self.get_astar_route_length_m()
 
         # Route in DEM pixel space
-        plt.plot(xs_pix, ys_pix, color="blue", linewidth=2, linestyle = "-",label=f"A* Route ({climb_dist:.1f}m)")
+        plt.plot(xs_pix, ys_pix, color="royalblue", linewidth=2, linestyle = "-",label=f"A* Route ({climb_dist:.1f}m)")
 
         # Mark start & summit
         plt.scatter(
