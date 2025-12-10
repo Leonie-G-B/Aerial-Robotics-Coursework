@@ -1,27 +1,28 @@
+#################################################################################
 
+# Full Path planning class for Aerial Robotics Coursework - Montserrat Path Planning
+# Author: Leonie Bottomley (2101377)
+# Date:   December 2025
+
+#################################################################################
+
+
+# Vital imports
 
 import folium
-# import srtm
-# from srtm.data import SrtmElevationData 
-import math
-import yaml
-import elevation
-import rasterio
-import numpy as np
-import matplotlib.pyplot as plt
-from os import path
-import requests
-import rasterio
-from rasterio.transform import  xy as transform_xy
-from pyproj import Transformer
-import pyproj
-import pyvista as pv
-import numpy as np 
 from scipy.ndimage import binary_dilation, label
-import shapely
 from shapely.geometry import Polygon, Point, LineString, MultiPoint
-import networkx as nx
 import heapq
+
+# Utils - plotting
+
+import rasterio
+import matplotlib.pyplot as plt
+
+# Utils - other
+
+import yaml
+import numpy as np
 
 
 #################################################################################
