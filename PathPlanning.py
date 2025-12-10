@@ -20,7 +20,8 @@ import numpy as np
 from scipy.ndimage import binary_dilation, label
 import shapely
 from shapely.geometry import Polygon, Point, LineString, MultiPoint
-
+import networkx as nx
+import heapq
 
 
 #################################################################################
@@ -739,7 +740,8 @@ class PathPlannerv2:
     def plot_slice_state_space(self, 
                                title: str = "Obstacle Mask in Climb Direction State Space",
                                plot_dilated_flags: bool = False,
-                               plot_visibility_graph: bool = False):
+                               plot_visibility_graph: bool = False,
+                               plot_final_route: bool = False):
         
         if self.slice_state_space is None:
             logging.error("Call build_slice_state_space() first.")
@@ -826,7 +828,22 @@ class PathPlannerv2:
                         ax.plot([pa[0], pb[0]], [pa[1], pb[1]],
                                 color="orchid", alpha=0.4, linewidth=1, linestyle = "--")
 
-        
+        if plot_final_route and "astar_path_coords" in ss:
+            px, py = zip(*ss["astar_path_coords"])
+
+            ax.plot(
+                px, py,
+                color="lime",
+                linewidth=2.0,
+                label="A* Final Path"
+            )
+
+            ax.scatter(
+                px, py,
+                color="lime",
+                s=15
+            )
+                
         ax.scatter(0, 0, c='red', s=80, label="Start of Climb (s=0, r=0)")
         ax.scatter(L_m, 0, c='blue', s=80, label="End of Climb (Summit)")
 
@@ -993,3 +1010,75 @@ class PathPlannerv2:
         logging.info(f"Visibility graph found with {len(G)} nodes")
 
         return G
+
+
+    def astar_visibility_path(self):
+        """
+        A* path finding (manual logic!).
+        """
+
+        if "visibility_graph" not in self.slice_state_space:
+            raise ValueError("Visibility graph not built. Call build_visibility_graph() first.")
+
+        G    = self.slice_state_space["visibility_graph"]
+        polys = self.slice_state_space["obstacle_polygons"]
+        L_m   = self.slice_state_space["L_m"]
+
+
+        pos = {"start": (0.0, 0.0), "goal": (L_m, 0.0)}
+
+        for idx, poly in enumerate(polys):
+            coords = list(poly.exterior.coords)
+            for v_i, (s, r) in enumerate(coords):
+                pos[f"poly{idx}_v{v_i}"] = (s, r)
+
+        def h(n):
+            x1, y1 = pos[n]
+            x2, y2 = pos["goal"]
+            return np.hypot(x1 - x2, y1 - y2)
+
+        open_heap = []
+        heapq.heappush(open_heap, (0 + h("start"), 0, "start"))
+
+        came_from = {}
+        g_score   = {node: float('inf') for node in G}
+        g_score["start"] = 0
+
+        closed = set()
+
+        while open_heap:
+            f, g, current = heapq.heappop(open_heap)
+
+            if current in closed:
+                continue
+            closed.add(current)
+
+            # Goal reached!!
+            if current == "goal":
+                break
+
+            for neighbor, cost in G[current].items():
+                tentative = g + cost
+                if tentative < g_score[neighbor]:
+                    g_score[neighbor] = tentative
+                    came_from[neighbor] = current
+                    heapq.heappush(open_heap, (tentative + h(neighbor), tentative, neighbor))
+
+        if "goal" not in came_from:
+            logging.error("A* failed: no path found")
+            return None, None
+
+        path = ["goal"]
+        while path[-1] != "start":
+            path.append(came_from[path[-1]])
+        path.reverse()
+
+        # Convert to coordinates
+        path_coords = [pos[n] for n in path]
+
+        self.slice_state_space["astar_path"] = path
+        self.slice_state_space["astar_path_coords"] = path_coords
+
+        logging.info(f"A* path found with {len(path)} nodes.")
+
+        return path, path_coords
