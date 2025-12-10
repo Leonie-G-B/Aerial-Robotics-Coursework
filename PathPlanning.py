@@ -253,16 +253,12 @@ class PathPlannerv2:
             extra_buffer_at_end = 250 #go an extra N metres behind the end point just to make the plots look a bit better.
         ):
         """
-        Docstring for build_slice_state_space
+        Main function: builds the s-r 'state space' for the climb portion of the mission. Where s is along the climb direction, and r is perpendicular to it.
         
-        :param self: Description
-        :param cruise_dist_m: Description
-        :param end_clearance_m: Description
-        :param route_clearance_m: Description
-        :param state_space_width_m: Description
-        :param n_climb_dir: Description
-        :param n_perp_climb: Description
-        :param initial_alt: Description
+        :param state_space_width_m: Width (in m) either side of the straight climb line to include in the state space.
+        :param n_climb_dir: Resolution (number of samples) along the climb direction.
+        :param n_perp_climb: Resolution (number of samples) perpendicular to the climb direction.
+        :param extra_buffer_at_end: Extra space after the end position to include for plotting clarity and incase overshoot is needed in the path eventually.
         """
         logging.info("Begginnig state space definition...")
 
@@ -316,7 +312,7 @@ class PathPlannerv2:
         summit_elev = max_elev
         final_alt = summit_elev + end_clearance_m
 
-        def plane_height(s_): #plane height as a function of S (underscore after to distibguish from S )
+        def plane_height(s_): #plane height as a function of S (underscore after to distinguish from S )
             return initial_alt + (final_alt - initial_alt) * (s_ /L_m)
         
 
@@ -734,12 +730,12 @@ class PathPlannerv2:
             if current == "goal":
                 break
 
-            for neighbor, cost in G[current].items():
+            for neighbour, cost in G[current].items():
                 tentative = g + cost
-                if tentative < g_score[neighbor]:
-                    g_score[neighbor] = tentative
-                    came_from[neighbor] = current
-                    heapq.heappush(open_heap, (tentative + h(neighbor), tentative, neighbor))
+                if tentative < g_score[neighbour]:
+                    g_score[neighbour] = tentative
+                    came_from[neighbour] = current
+                    heapq.heappush(open_heap, (tentative + h(neighbour), tentative, neighbour))
 
         if "goal" not in came_from:
             logging.error("A* failed: no path found")

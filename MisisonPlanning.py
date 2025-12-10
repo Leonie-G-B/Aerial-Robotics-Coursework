@@ -1,12 +1,17 @@
 
-### Utility functions relating to building up a mission (PyMav) plan
+#################################################################################
+
+# Full Mission Planner class for Aerial Robotics Coursework - Montserrat Path Planning
+# Author: Leonie Bottomley (2101377)
+# Date:   December 2025
+
+#################################################################################
 
 import yaml 
 import math
 from pymavlink import mavutil
 
 import MissionUtils as utils
-
 
 #################################################################################
 import logging                                                                  #       
